@@ -71,61 +71,6 @@
   "source": "generated from data/fp/beijing_20_roads.png"
  },
  {
-  "id": "shanghai_bund",
-  "name": "上海 · 外滩",
-  "city": "上海市",
-  "province": "上海市",
-  "file": "samples/commons/shanghai_bund.jpg",
-  "fov": 12,
-  "expected": [
-   "310101",
-   "310115"
-  ],
-  "lat": 31.24,
-  "lon": 121.49,
-  "note": "民航舷窗侧拍，黄浦江与陆家嘴；有玻璃反光。",
-  "author": "A Chinese ID",
-  "license": "CC BY-SA 4.0",
-  "source": "https://commons.wikimedia.org/wiki/File:Aerial_View_of_the_Bund_at_night,_Aug_10_2023_(1).jpg"
- },
- {
-  "id": "nanjing",
-  "name": "南京 · 夜空",
-  "city": "南京市",
-  "province": "江苏省",
-  "file": "samples/commons/nanjing.jpg",
-  "fov": 30,
-  "expected": [
-   "320102",
-   "320104",
-   "320105",
-   "320106"
-  ],
-  "lat": 32.0603,
-  "lon": 118.7969,
-  "note": "高空舷窗俯拍，城市铺展到地平线；灯光网较暗。",
-  "author": "PQ77wd",
-  "license": "CC BY-SA 4.0",
-  "source": "https://commons.wikimedia.org/wiki/File:Night_in_Nanjing_from_the_sky.jpg"
- },
- {
-  "id": "shenzhen_nanshan",
-  "name": "深圳 · 南山",
-  "city": "深圳市",
-  "province": "广东省",
-  "file": "samples/commons/shenzhen_nanshan.jpg",
-  "fov": 25,
-  "expected": [
-   "440305"
-  ],
-  "lat": 22.5312,
-  "lon": 113.9294,
-  "note": "进近深圳机场时拍摄，地平线在画面上部，透视很强。",
-  "author": "MNXANL",
-  "license": "CC BY-SA 4.0",
-  "source": "https://commons.wikimedia.org/wiki/File:201611_Night_in_Nanshan_District,_Shenzhen.jpg"
- },
- {
   "id": "hangzhou_heda",
   "name": "杭州 · 下沙",
   "city": "杭州市",
@@ -141,40 +86,6 @@
   "author": "MNXANL",
   "license": "CC BY-SA 4.0",
   "source": "https://commons.wikimedia.org/wiki/File:201708_HEDA_at_night.jpg"
- },
- {
-  "id": "guangzhou_longxi",
-  "name": "广州 · 龙溪立交",
-  "city": "广州市",
-  "province": "广东省",
-  "file": "samples/commons/guangzhou_longxi.jpg",
-  "fov": 3.5,
-  "expected": [
-   "440103"
-  ],
-  "lat": 23.080068,
-  "lon": 113.228263,
-  "note": "近景无人机侧拍，立交与铁路编组站；用于演示拉正，不是几公里级主场景。",
-  "author": "YikyuenG",
-  "license": "CC BY-SA 4.0",
-  "source": "https://commons.wikimedia.org/wiki/File:Aerial_view,_Longxi_Lijiao,_Liwan_District,_Guangzhou,_At_night.jpg"
- },
- {
-  "id": "guangzhou_zengjiao",
-  "name": "广州 · 增漖立交",
-  "city": "广州市",
-  "province": "广东省",
-  "file": "samples/commons/guangzhou_zengjiao.jpg",
-  "fov": 4,
-  "expected": [
-   "440103"
-  ],
-  "lat": 23.08,
-  "lon": 113.23,
-  "note": "环城高速立交近景，匝道几何是强指纹。",
-  "author": "YikyuenG",
-  "license": "CC BY-SA 4.0",
-  "source": "https://commons.wikimedia.org/wiki/File:Night_Aerial_View,_Zengjiao_Lijiao,_S81_Guangzhou_Ring_Expressway,_Liwan_District,_Guangzhou.jpg"
  },
  {
   "id": "chongqing_airport",

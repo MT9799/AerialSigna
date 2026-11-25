@@ -10,7 +10,7 @@ const state = {
   img: null, src: "", meta: null, ext: null, mask: null, desc: null,
   results: [], selected: -1, view: "overlay", rectify: true,
   quad: [{ x: .07, y: .07 }, { x: .93, y: .07 }, { x: .93, y: .93 }, { x: .07, y: .93 }],
-  drag: -1, busy: false, tileCache: new Map(), token: 0, rectifiedCanvas: null,
+  drag: null, busy: false, tileCache: new Map(), token: 0, rectifiedCanvas: null,
   // Keep the untouched extraction around so switching 自动透视 off restores
   // exactly what was loaded, not a half-rectified derivative.
   baseExt: null, baseMask: null, baseDesc: null, baseDescs: null,
@@ -423,6 +423,14 @@ function drawQuad(ctx, r) {
     ctx.fillStyle = "#5eead4";
     ctx.fill();
   }
+  // Mid-edge handles: these make the moveable edges discoverable.
+  for (let i = 0; i < 4; i++) {
+    const a = pts[i], b = pts[(i + 1) % 4];
+    ctx.beginPath();
+    ctx.arc((a.x + b.x) / 2, (a.y + b.y) / 2, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(94,234,212,.55)";
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -818,50 +826,127 @@ function bindUI() {
 
   const cv = $("#view");
   const hitRadius = () => Math.max(34, Math.min(cv.width, cv.height) * 0.055);
-  const cornerAt = (p) => {
-    const r = imageRect(state.img, cv.width, cv.height);
+  const edgeRadius = () => Math.max(12, Math.min(cv.width, cv.height) * 0.018);
+  const quadOnCanvas = () => {
+    const r = imageRect(state.img, cv.width, cv.height, 0);
+    return state.quad.map((q) => ({ x: r.x + q.x * r.w, y: r.y + q.y * r.h }));
+  };
+  const cornerAt = (p, pts = quadOnCanvas()) => {
     let best = -1, bd = hitRadius();
-    state.quad.forEach((q, i) => {
-      const x = r.x + q.x * r.w, y = r.y + q.y * r.h;
-      const d = Math.hypot(x - p.x, y - p.y);
+    pts.forEach((q, i) => {
+      const d = Math.hypot(q.x - p.x, q.y - p.y);
       if (d < bd) { bd = d; best = i; }
     });
     return best;
   };
-  cv.addEventListener("pointerdown", (e) => {
-    if (!state.rectify || state.view === "overlay") return;
-    const p = canvasPoint(e);
-    const best = cornerAt(p);
-    if (best >= 0) {
-      state.drag = best;
-      cv.setPointerCapture(e.pointerId);
-      cv.style.cursor = "grabbing";
-      e.preventDefault();
+  const distanceToSegment = (p, a, b) => {
+    const vx = b.x - a.x, vy = b.y - a.y;
+    const wx = p.x - a.x, wy = p.y - a.y;
+    const len2 = vx * vx + vy * vy || 1;
+    const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / len2));
+    return Math.hypot(p.x - (a.x + vx * t), p.y - (a.y + vy * t));
+  };
+  const edgeAt = (p, pts = quadOnCanvas()) => {
+    let best = -1, bd = edgeRadius();
+    for (let i = 0; i < 4; i++) {
+      const d = distanceToSegment(p, pts[i], pts[(i + 1) % 4]);
+      if (d < bd) { bd = d; best = i; }
     }
+    return best;
+  };
+  const insideQuad = (p, pts = quadOnCanvas()) => {
+    let inside = false;
+    for (let i = 0, j = 3; i < 4; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if (((yi > p.y) !== (yj > p.y)) && p.x < ((xj - xi) * (p.y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const shiftQuad = (base, dx, dy) => {
+    const minx = Math.min(...base.map((q) => q.x)), maxx = Math.max(...base.map((q) => q.x));
+    const miny = Math.min(...base.map((q) => q.y)), maxy = Math.max(...base.map((q) => q.y));
+    const sx = Math.max(-minx, Math.min(1 - maxx, dx));
+    const sy = Math.max(-miny, Math.min(1 - maxy, dy));
+    return base.map((q) => ({ x: q.x + sx, y: q.y + sy }));
+  };
+  const shiftEdge = (base, i, dx, dy) => {
+    const j = (i + 1) % 4;
+    const minx = Math.min(base[i].x, base[j].x), maxx = Math.max(base[i].x, base[j].x);
+    const miny = Math.min(base[i].y, base[j].y), maxy = Math.max(base[i].y, base[j].y);
+    const sx = Math.max(-minx, Math.min(1 - maxx, dx));
+    const sy = Math.max(-miny, Math.min(1 - maxy, dy));
+    return base.map((q, k) => k === i || k === j ? { x: q.x + sx, y: q.y + sy } : { x: q.x, y: q.y });
+  };
+
+  cv.addEventListener("pointerdown", (e) => {
+    if (!state.rectify || state.view === "overlay" || !state.img) return;
+    const p = canvasPoint(e);
+    const pts = quadOnCanvas();
+    const ci = cornerAt(p, pts);
+    let drag = null;
+    if (ci >= 0) {
+      drag = { kind: "corner", index: ci };
+    } else {
+      const ei = edgeAt(p, pts);
+      if (ei >= 0) {
+        drag = {
+          kind: "edge", index: ei, start: p,
+          base: state.quad.map((q) => ({ ...q })),
+        };
+      } else if (insideQuad(p, pts)) {
+        drag = {
+          kind: "move", start: p,
+          base: state.quad.map((q) => ({ ...q })),
+        };
+      }
+    }
+    if (!drag) return;
+    state.drag = drag;
+    cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = "grabbing";
+    e.preventDefault();
   });
+
   cv.addEventListener("pointermove", (e) => {
     const p = canvasPoint(e);
-    if (state.drag < 0) {
-      cv.style.cursor = state.rectify && state.view !== "overlay" && cornerAt(p) >= 0 ? "grab" : "default";
+    if (!state.drag) {
+      let cursor = "default";
+      if (state.rectify && state.view !== "overlay" && state.img) {
+        const pts = quadOnCanvas();
+        if (cornerAt(p, pts) >= 0 || edgeAt(p, pts) >= 0) cursor = "grab";
+        else if (insideQuad(p, pts)) cursor = "move";
+      }
+      cv.style.cursor = cursor;
       return;
     }
-    const r = imageRect(state.img, cv.width, cv.height);
-    state.quad[state.drag] = {
-      x: Math.max(0, Math.min(1, (p.x - r.x) / r.w)),
-      y: Math.max(0, Math.min(1, (p.y - r.y) / r.h)),
-    };
+    const r = imageRect(state.img, cv.width, cv.height, 0);
+    const drag = state.drag;
+    if (drag.kind === "corner") {
+      state.quad[drag.index] = {
+        x: Math.max(0, Math.min(1, (p.x - r.x) / r.w)),
+        y: Math.max(0, Math.min(1, (p.y - r.y) / r.h)),
+      };
+    } else if (drag.kind === "edge") {
+      state.quad = shiftEdge(drag.base, drag.index, (p.x - drag.start.x) / r.w, (p.y - drag.start.y) / r.h);
+    } else if (drag.kind === "move") {
+      state.quad = shiftQuad(drag.base, (p.x - drag.start.x) / r.w, (p.y - drag.start.y) / r.h);
+    }
     state.rectDirty = true;
     drawSource();
   });
-  cv.addEventListener("pointerup", () => {
-    if (state.drag < 0) return;
-    state.drag = -1;
+
+  const endDrag = (e) => {
+    if (!state.drag) return;
+    state.drag = null;
     cv.style.cursor = "grab";
+    if (e && cv.hasPointerCapture?.(e.pointerId)) cv.releasePointerCapture(e.pointerId);
     // Refresh 叠加 immediately: the old code left the overlay stale until
     // the next tab switch or a full match.
     if (state.rectify) applyRectify();
     draw();
-  });
+  };
+  cv.addEventListener("pointerup", endDrag);
+  cv.addEventListener("pointercancel", endDrag);
 
   $("#province").addEventListener("change", () => { if (state.results.length) state.results = []; renderResults(); });
 }

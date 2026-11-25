@@ -9,11 +9,10 @@
 |---|---|---|---|
 | `synthetic_beijing_0` | 由 `data/fp/beijing_20_roads.png` 中心 10 km 裁剪生成 | 10 km，正北 | 无旋转对照；预期 `110101/110102/110105/110106` |
 | `synthetic_beijing` | 同上，旋转 18° + 辉光/噪声 | 10 km，18° | 旋转对照 |
-| `shanghai_bund` | Wikimedia Commons | 约 10–15 km，舷窗侧拍 | 黄浦江/陆家嘴，有玻璃反光 |
-| `nanjing` | Wikimedia Commons | 约 30 km，高空舷窗 | 城市铺到地平线，灯光较暗 |
-| `shenzhen_nanshan` | Wikimedia Commons | 约 10–20 km，进近 | 地平线在上半幅，极斜 |
+| `linquan_full` | Wikimedia / 舷窗实拍 | 约 10 km，斜拍 | 临泉县城网格 + 外围放射路 |
 | `hangzhou_heda` | Wikimedia Commons | 约 15 km，舷窗 | 机翼 + 远处灯带 |
-| `guangzhou_longxi` / `zengjiao` | Wikimedia Commons | 3–4 km，无人机 | 超出主场景，用作矫正/近景负例 |
+| `chongqing_airport` | Wikimedia Commons | 机场进近 | 跑道灯/航站楼负例 |
+| `shanghai_airports` | Wikimedia Commons | 两场之间 | 机场+城市混合场景 |
 
 合成图的生成方式：裁 512×512（10 km）→ 放大到 900×900 → 可选旋转 18° → 黑底 + 橙白道路 + 轻微辉光/噪声。它不是“用测试集调参”的产物，但确实比真实照片干净，因此只用于验证匹配器本身。
 
@@ -98,7 +97,7 @@ http://127.0.0.1:8899/?sample=synthetic_beijing_0
 # 旋转 18°
 http://127.0.0.1:8899/?sample=synthetic_beijing
 # 只看提取骨架
-http://127.0.0.1:8899/?sample=shanghai_bund&view=mask&norun=1
+http://127.0.0.1:8899/?sample=linquan_full&view=mask&norun=1
 ```
 
 ## 6. 结论
