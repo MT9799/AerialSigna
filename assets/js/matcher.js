@@ -173,7 +173,7 @@ export class Matcher {
     // The pilot index is small enough to coarse-scan all counties. For the
     // national index this is capped at 96 and the orientation-only prefilter
     // is deliberately permissive; the fine stage is the expensive part.
-    const coarse = this.prefilter(desc, filter, 64);
+    const coarse = this.prefilter(desc, filter, 32);
     if (!coarse.length) return [];
     const N0 = 128;
     const mask0 = downsample(mask, 256, N0);
