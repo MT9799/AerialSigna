@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>瞰纹 AerialSigna · 用路网认出一座城</title>
+<meta name="description" content="夜航城市识别：从航拍夜景中提取被路灯照亮的道路网，与 OpenStreetMap 全国县级路网指纹比对，纯浏览器运行。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1118'/%3E%3Cpath d='M12 44h40M20 32h24M28 20h8' stroke='%235eead4' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<div class="noise" aria-hidden="true"></div>
+<header class="topbar">
+  <a class="brand" href="./">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40"><path d="M6 28h28M11 21h18M16 14h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="20" cy="33" r="1.8" fill="currentColor"/></svg>
+    </span>
+    <span class="brand-text"><b>瞰纹</b><i>AerialSigna</i></span>
+  </a>
+  <nav class="nav">
+    <a href="#console">识别</a>
+    <a href="#how">原理</a>
+    <a href="#data">数据</a>
+    <a href="https://github.com/MT9799/AerialSigna" target="_blank" rel="noopener">GitHub ↗</a>
+  </nav>
+  <div class="status-pill" id="indexStatus"><span class="dot"></span><span>载入索引…</span></div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">NIGHT LIGHT · ROAD FINGERPRINT · CHINA</p>
+    <h1>把一片夜光，<br><em>认成一座城。</em></h1>
+    <p class="lede">飞机舷窗外、无人机升空后、卫星过境时——路灯把城市画成一张发光的网。
+      我们不依赖不完整的夜景图库，而是把这张网与 <b>全国县级 OpenStreetMap 路网</b>做几何比对。</p>
+    <div class="badges">
+      <span><b id="countyCount">2,874</b> 个县级行政区</span>
+      <span>5–60 km 视场</span>
+      <span>纯前端 · 无构建</span>
+    </div>
+  </div>
+  <div class="hero-orbit" aria-hidden="true">
+    <div class="orbit-ring r1"></div>
+    <div class="orbit-ring r2"></div>
+    <div class="orbit-ring r3"></div>
+    <div class="orbit-city"><span>北京</span><i>39.90°N</i></div>
+    <div class="orbit-node n1"></div><div class="orbit-node n2"></div><div class="orbit-node n3"></div>
+    <p>OSM / 路灯 / 河流 / 机场</p>
+  </div>
+</section>
+
+<section id="console" class="console">
+  <aside class="panel controls">
+    <div class="panel-head"><span class="kicker">01 / 输入</span><h2>投一张夜航图</h2></div>
+
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <input id="fileInput" type="file" accept="image/*" hidden>
+      <svg class="dz-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 32V12m0 0-8 8m8-8 8 8" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 30v6a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4v-6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+      <b>拖入 / 点击上传</b>
+      <span>JPG · PNG · WebP，建议 ≥ 1200 px</span>
+    </label>
+
+    <div class="sample-block">
+      <div class="row-label"><span>或加载样例</span><span id="sampleHint">含真实拍摄地</span></div>
+      <div class="chips" id="sampleChips"></div>
+    </div>
+
+    <div class="field-grid">
+      <label class="field">
+        <span>识别范围</span>
+        <select id="province"><option value="">全国（当前试点）</option></select>
+      </label>
+      <label class="field">
+        <span>县区关键词</span>
+        <input id="countyQuery" type="text" placeholder="可不填，如 浦东">
+      </label>
+    </div>
+
+    <div class="field-grid">
+      <label class="field">
+        <span>估算视场</span>
+        <select id="fov">
+          <option value="auto" selected>自动（推荐）</option>
+          <option value="8">约 8 km</option>
+          <option value="15">约 15 km</option>
+          <option value="25">约 25 km</option>
+          <option value="45">约 45 km</option>
+          <option value="70">约 70 km</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>底图</span>
+        <select id="tileMode">
+          <option value="dist" selected>距离场（抗断裂）</option>
+          <option value="road">路网二值图</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="switch">
+      <input id="rectify" type="checkbox">
+      <span class="track"></span>
+      <span><b>透视拉正</b><small>侧拍时拖动四角，把地面拉成俯视</small></span>
+    </label>
+
+    <button class="primary" id="runBtn" disabled>
+      <span class="btn-label">开始识别</span>
+      <span class="btn-arrow">→</span>
+    </button>
+    <div class="run-status" id="runStatus">等待图片</div>
+
+    <div class="fineprint">
+      <span>不是夜景图库比对</span>
+      <span>不把照片上传到服务器</span>
+      <span>结果按几何相似度排序</span>
+    </div>
+  </aside>
+
+  <section class="panel stage">
+    <div class="stage-head">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-view="overlay">叠加</button>
+        <button class="tab" data-view="source">原图</button>
+        <button class="tab" data-view="mask">提取路网</button>
+      </div>
+      <div class="stage-meta" id="stageMeta">尚无结果</div>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="view" width="900" height="620"></canvas>
+      <div class="empty-state" id="emptyState">
+        <span class="crosshair"></span>
+        <b>等待一张夜景</b>
+        <p>上传后在这里查看路网提取与最佳匹配的叠加。</p>
+      </div>
+      <div class="quad-hint" id="quadHint" hidden>拖动四个角点，贴合图中地面的矩形区域</div>
+    </div>
+    <div class="stage-foot">
+      <div class="legend">
+        <span><i class="sw sw-osm"></i>OSM 路网</span>
+        <span><i class="sw sw-query"></i>照片提取路网</span>
+        <span><i class="sw sw-overlap"></i>重合</span>
+      </div>
+      <div class="view-actions">
+        <button class="ghost" id="downloadOverlay" disabled>导出叠加图 ↓</button>
+        <button class="ghost" id="fitBtn" disabled>适应视图</button>
+      </div>
+    </div>
+  </section>
+</section>
+
+<section class="results" id="results">
+  <div class="section-head">
+    <div><span class="kicker">02 / 排序</span><h2>候选位置</h2></div>
+    <p>相似度同时考虑<b>命中率</b>（照片路网是否落在 OSM 道路上）、<b>平均距离</b>与<b>反向覆盖</b>；它不是概率。</p>
+  </div>
+  <div class="result-list" id="resultList">
+    <div class="result-placeholder">
+      <span>—</span><p>识别后，这里会按相似度列出最可能的县区，并标出估计视场与旋转角。</p>
+    </div>
+  </div>
+</section>
+
+<section class="diagnostics" id="diagnostics" hidden>
+  <div class="section-head"><div><span class="kicker">03 / 诊断</span><h2>照片里还读出了什么</h2></div></div>
+  <div class="diag-grid">
+    <div class="diag"><span>提取到的道路像素</span><b id="dRoads">—</b><small>细化后骨架点数</small></div>
+    <div class="diag"><span>估算地面视场</span><b id="dFov">—</b><small>由匹配尺度反推</small></div>
+    <div class="diag"><span>主方向</span><b id="dAngle">—</b><small>相对正北旋转</small></div>
+    <div class="diag"><span>亮度分层</span><b id="dBright">—</b><small>高亮核心 / 暗部背景</small></div>
+    <div class="diag"><span>水系暗带</span><b id="dWater">—</b><small>连续低亮度条带（启发式）</small></div>
+    <div class="diag"><span>机场 / 大亮斑</span><b id="dBlob">—</b><small>尺度较大的独立亮团</small></div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="section-head"><div><span class="kicker">04 / 原理</span><h2>为什么是路网，而不是夜景库</h2></div></div>
+  <div class="how-grid">
+    <article><span>01</span><h3>灯光 → 骨架</h3><p>顶帽变换压掉大范围光晕，保留细亮线； Zhang-Suen 细化成 1 px 的道路骨架。窗户、车灯、广告牌大多在这一步被当成噪声丢掉。</p></article>
+    <article><span>02</span><h3>路网 → 距离场</h3><p>把 OSM 的 motorway / trunk / primary / secondary / tertiary / residential 按等级描成线，再算每个像素到最近道路的距离。距离场让“桥断了一截”不至于全盘失败。</p></article>
+    <article><span>03</span><h3>旋转 / 缩放 / 平移</h3><p>对每个候选县，用 FFT 互相关一次性求出所有平移的 chamfer 代价；外层再搜 12 个旋转与 4 个尺度。粗筛 64 px，精排 256 px。</p></article>
+    <article><span>04</span><h3>为什么不用原始矢量直接比</h3><p>矢量对矢量要先从照片骨架恢复道路图结构（交叉点、路段、连通性），再在图级别做子图同构；在 2,874 个县上既慢又脆。我们保留矢量做<b>第二阶段支撑率校验</b>，栅格只负责快速召回。</p></article>
+  </div>
+  <div class="pipeline">
+    <div>照片</div><i>→</i><div>拉正</div><i>→</i><div>亮线骨架</div><i>→</i><div>描述子粗筛</div><i>→</i><div>chamfer + FFT</div><i>→</i><div>矢量支撑复核</div><i>→</i><div>排序 / 叠加</div>
+  </div>
+</section>
+
+<section class="data" id="data">
+  <div class="section-head"><div><span class="kicker">05 / 数据与边界</span><h2>它现在能做什么，不能做什么</h2></div></div>
+  <div class="data-grid">
+    <div>
+      <h3>数据</h3>
+      <ul>
+        <li><b>路网</b>：OpenStreetMap，经 OpenFreeMap 矢量瓦片按县裁剪；覆盖全国县级行政区。</li>
+        <li><b>行政边界/驻地</b>：DataV GeoAtlas，2,874 个县级单元；台湾省暂无 OSM 抽取。</li>
+        <li><b>测试图</b>：Wikimedia Commons 的真实航拍/舷窗夜景，保留作者与许可。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>边界</h3>
+      <ul>
+        <li>路灯亮度 ≠ 道路等级：老城小巷可能比新城主干道更亮。当前用<b>几何</b>为主、等级为弱先验，下一步加入“亮度—等级”学习。</li>
+        <li>浓云、舷窗反光、城市光晕会切断骨架；距离场能容忍断线，但不能凭空恢复被云遮住的路。</li>
+        <li>水面、机场跑道、大型立交是强线索，也是强干扰；单张图仍可能落到同构的另一个城市。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="foot-brand"><b>瞰纹 AerialSigna</b><span>夜空路网定位实验</span></div>
+  <p>OSM 数据 © OpenStreetMap contributors · 样例图来自 Wikimedia Commons，遵循各自许可 · 本页仅做几何匹配演示，不提供精确坐标承诺。</p>
+</footer>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

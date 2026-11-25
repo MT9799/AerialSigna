@@ -1,0 +1,649 @@
+{
+  "schema": 1,
+  "country": "CN",
+  "country_name": "中国",
+  "generated": "2026-11-25",
+  "note": "City centers are approximate municipal-core points. Fingerprints are generated from OpenStreetMap.",
+  "cities": [
+    {
+      "id": "beijing",
+      "name": "北京",
+      "name_en": "Beijing",
+      "province": "北京",
+      "province_en": "Beijing",
+      "lat": 39.9042,
+      "lon": 116.4074,
+      "rank": 1,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "shanghai",
+      "name": "上海",
+      "name_en": "Shanghai",
+      "province": "上海",
+      "province_en": "Shanghai",
+      "lat": 31.2304,
+      "lon": 121.4737,
+      "rank": 2,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "guangzhou",
+      "name": "广州",
+      "name_en": "Guangzhou",
+      "province": "广东",
+      "province_en": "Guangdong",
+      "lat": 23.1291,
+      "lon": 113.2644,
+      "rank": 3,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "shenzhen",
+      "name": "深圳",
+      "name_en": "Shenzhen",
+      "province": "广东",
+      "province_en": "Guangdong",
+      "lat": 22.5431,
+      "lon": 114.0579,
+      "rank": 4,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "chengdu",
+      "name": "成都",
+      "name_en": "Chengdu",
+      "province": "四川",
+      "province_en": "Sichuan",
+      "lat": 30.5728,
+      "lon": 104.0668,
+      "rank": 5,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "chongqing",
+      "name": "重庆",
+      "name_en": "Chongqing",
+      "province": "重庆",
+      "province_en": "Chongqing",
+      "lat": 29.563,
+      "lon": 106.5516,
+      "rank": 6,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "wuhan",
+      "name": "武汉",
+      "name_en": "Wuhan",
+      "province": "湖北",
+      "province_en": "Hubei",
+      "lat": 30.5928,
+      "lon": 114.3055,
+      "rank": 7,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "xian",
+      "name": "西安",
+      "name_en": "Xi'an",
+      "province": "陕西",
+      "province_en": "Shaanxi",
+      "lat": 34.3416,
+      "lon": 108.9398,
+      "rank": 8,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "hangzhou",
+      "name": "杭州",
+      "name_en": "Hangzhou",
+      "province": "浙江",
+      "province_en": "Zhejiang",
+      "lat": 30.2741,
+      "lon": 120.1551,
+      "rank": 9,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "nanjing",
+      "name": "南京",
+      "name_en": "Nanjing",
+      "province": "江苏",
+      "province_en": "Jiangsu",
+      "lat": 32.0603,
+      "lon": 118.7969,
+      "rank": 10,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "tianjin",
+      "name": "天津",
+      "name_en": "Tianjin",
+      "province": "天津",
+      "province_en": "Tianjin",
+      "lat": 39.0842,
+      "lon": 117.2009,
+      "rank": 11,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "suzhou",
+      "name": "苏州",
+      "name_en": "Suzhou",
+      "province": "江苏",
+      "province_en": "Jiangsu",
+      "lat": 31.2989,
+      "lon": 120.5853,
+      "rank": 12,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "zhengzhou",
+      "name": "郑州",
+      "name_en": "Zhengzhou",
+      "province": "河南",
+      "province_en": "Henan",
+      "lat": 34.7466,
+      "lon": 113.6254,
+      "rank": 13,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "changsha",
+      "name": "长沙",
+      "name_en": "Changsha",
+      "province": "湖南",
+      "province_en": "Hunan",
+      "lat": 28.2282,
+      "lon": 112.9388,
+      "rank": 14,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "qingdao",
+      "name": "青岛",
+      "name_en": "Qingdao",
+      "province": "山东",
+      "province_en": "Shandong",
+      "lat": 36.0671,
+      "lon": 120.3826,
+      "rank": 15,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "shenyang",
+      "name": "沈阳",
+      "name_en": "Shenyang",
+      "province": "辽宁",
+      "province_en": "Liaoning",
+      "lat": 41.8057,
+      "lon": 123.4315,
+      "rank": 16,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "harbin",
+      "name": "哈尔滨",
+      "name_en": "Harbin",
+      "province": "黑龙江",
+      "province_en": "Heilongjiang",
+      "lat": 45.8038,
+      "lon": 126.535,
+      "rank": 17,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "kunming",
+      "name": "昆明",
+      "name_en": "Kunming",
+      "province": "云南",
+      "province_en": "Yunnan",
+      "lat": 25.0389,
+      "lon": 102.7183,
+      "rank": 18,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "xiamen",
+      "name": "厦门",
+      "name_en": "Xiamen",
+      "province": "福建",
+      "province_en": "Fujian",
+      "lat": 24.4798,
+      "lon": 118.0894,
+      "rank": 19,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "fuzhou",
+      "name": "福州",
+      "name_en": "Fuzhou",
+      "province": "福建",
+      "province_en": "Fujian",
+      "lat": 26.0745,
+      "lon": 119.2965,
+      "rank": 20,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "jinan",
+      "name": "济南",
+      "name_en": "Jinan",
+      "province": "山东",
+      "province_en": "Shandong",
+      "lat": 36.6512,
+      "lon": 117.1201,
+      "rank": 21,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "hefei",
+      "name": "合肥",
+      "name_en": "Hefei",
+      "province": "安徽",
+      "province_en": "Anhui",
+      "lat": 31.8206,
+      "lon": 117.2272,
+      "rank": 22,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "dalian",
+      "name": "大连",
+      "name_en": "Dalian",
+      "province": "辽宁",
+      "province_en": "Liaoning",
+      "lat": 38.914,
+      "lon": 121.6147,
+      "rank": 23,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "ningbo",
+      "name": "宁波",
+      "name_en": "Ningbo",
+      "province": "浙江",
+      "province_en": "Zhejiang",
+      "lat": 29.8683,
+      "lon": 121.544,
+      "rank": 24,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "wuxi",
+      "name": "无锡",
+      "name_en": "Wuxi",
+      "province": "江苏",
+      "province_en": "Jiangsu",
+      "lat": 31.4912,
+      "lon": 120.3119,
+      "rank": 25,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "foshan",
+      "name": "佛山",
+      "name_en": "Foshan",
+      "province": "广东",
+      "province_en": "Guangdong",
+      "lat": 23.0215,
+      "lon": 113.1214,
+      "rank": 26,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "dongguan",
+      "name": "东莞",
+      "name_en": "Dongguan",
+      "province": "广东",
+      "province_en": "Guangdong",
+      "lat": 23.0207,
+      "lon": 113.7518,
+      "rank": 27,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "nanning",
+      "name": "南宁",
+      "name_en": "Nanning",
+      "province": "广西",
+      "province_en": "Guangxi",
+      "lat": 22.817,
+      "lon": 108.3665,
+      "rank": 28,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "guiyang",
+      "name": "贵阳",
+      "name_en": "Guiyang",
+      "province": "贵州",
+      "province_en": "Guizhou",
+      "lat": 26.647,
+      "lon": 106.6302,
+      "rank": 29,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "lanzhou",
+      "name": "兰州",
+      "name_en": "Lanzhou",
+      "province": "甘肃",
+      "province_en": "Gansu",
+      "lat": 36.0611,
+      "lon": 103.8343,
+      "rank": 30,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "urumqi",
+      "name": "乌鲁木齐",
+      "name_en": "Urumqi",
+      "province": "新疆",
+      "province_en": "Xinjiang",
+      "lat": 43.8256,
+      "lon": 87.6168,
+      "rank": 31,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "lhasa",
+      "name": "拉萨",
+      "name_en": "Lhasa",
+      "province": "西藏",
+      "province_en": "Tibet",
+      "lat": 29.652,
+      "lon": 91.1721,
+      "rank": 32,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "haikou",
+      "name": "海口",
+      "name_en": "Haikou",
+      "province": "海南",
+      "province_en": "Hainan",
+      "lat": 20.044,
+      "lon": 110.1999,
+      "rank": 33,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "sanya",
+      "name": "三亚",
+      "name_en": "Sanya",
+      "province": "海南",
+      "province_en": "Hainan",
+      "lat": 18.2528,
+      "lon": 109.5119,
+      "rank": 34,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "hohhot",
+      "name": "呼和浩特",
+      "name_en": "Hohhot",
+      "province": "内蒙古",
+      "province_en": "Inner Mongolia",
+      "lat": 40.8426,
+      "lon": 111.7492,
+      "rank": 35,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "taiyuan",
+      "name": "太原",
+      "name_en": "Taiyuan",
+      "province": "山西",
+      "province_en": "Shanxi",
+      "lat": 37.8706,
+      "lon": 112.5489,
+      "rank": 36,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "shijiazhuang",
+      "name": "石家庄",
+      "name_en": "Shijiazhuang",
+      "province": "河北",
+      "province_en": "Hebei",
+      "lat": 38.0428,
+      "lon": 114.5149,
+      "rank": 37,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "changchun",
+      "name": "长春",
+      "name_en": "Changchun",
+      "province": "吉林",
+      "province_en": "Jilin",
+      "lat": 43.8171,
+      "lon": 125.3235,
+      "rank": 38,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "nanchang",
+      "name": "南昌",
+      "name_en": "Nanchang",
+      "province": "江西",
+      "province_en": "Jiangxi",
+      "lat": 28.682,
+      "lon": 115.8579,
+      "rank": 39,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    },
+    {
+      "id": "wenzhou",
+      "name": "温州",
+      "name_en": "Wenzhou",
+      "province": "浙江",
+      "province_en": "Zhejiang",
+      "lat": 27.9938,
+      "lon": 120.6994,
+      "rank": 40,
+      "fovs": [
+        5,
+        10,
+        20,
+        40
+      ]
+    }
+  ]
+}

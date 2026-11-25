@@ -1,0 +1,18 @@
+# Chrome / Playwright test profiles
+.chrome*/
+
+# Pipeline caches and logs (generated)
+pipeline/cache/
+pipeline/logs/
+pipeline/.pylibs/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large local scratch
+*.log
