@@ -16,3 +16,5 @@ Thumbs.db
 
 # Large local scratch
 *.log
+devtmp/
+nul

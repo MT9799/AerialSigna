@@ -103,8 +103,14 @@ export class Matcher {
       // For a ~10 km query, compare against the 10 km centre descriptor of the
       // 20 km county tile; the full-tile radial/density profile is not scale-free.
       const refDesc = (filter.fovKm && filter.fovKm <= 15 && e.desc10) ? e.desc10 : e.desc;
-      const o = orientScore(desc, refDesc);
-      if (typeof location !== "undefined" && location.search.includes("debug=1") && e.id === "110101")
+      let o = orientScore(desc, refDesc);
+      if (filter.descs) {
+        for (const qd of filter.descs) {
+          const t = orientScore(qd, refDesc);
+          if (t.score > o.score) o = t;
+        }
+      }
+      if (typeof location !== "undefined" && location.search.includes("debug=1") && e.id === "110102")
         console.log("BJ_SHIFT", o.shift, o.shift * 5, o.score.toFixed(3));
       const r = radialScore(desc, refDesc);
       const dens = 1 - Math.min(1, Math.abs(desc[48] - refDesc[48]) / 64);
@@ -256,7 +262,7 @@ export class Matcher {
     }
     if (typeof location !== "undefined" && location.search.includes("debug=1"))
       console.log("RANKED16", rankedAll.slice(0, 16).map((x) => `${x.entry.name}:${x.coarse.corr.toFixed(3)}@a${x.coarse.angle}`).join(" "));
-    const ranked = rankedAll.slice(0, 6);
+    const ranked = rankedAll.slice(0, 8);
     if (typeof location !== "undefined" && location.search.includes("debug=1")) {
       console.log("COARSE", [...best.values()].sort((a, b) => a.coarse.mean - b.coarse.mean).slice(0, 10)
         .map((x) => `${x.entry.name}:${x.coarse.mean.toFixed(2)}@s${x.coarse.scale.toFixed(2)}a${x.coarse.angle}`).join(" "));
@@ -284,10 +290,25 @@ export class Matcher {
       }
       fft.forward(rRe, rIm);
       let b = null;
+      const angleMixes = [];
       const s0 = cand.coarse.scale, a0 = cand.coarse.angle;
       for (const s of (hint ? [s0] : [s0 * 0.82, s0, s0 * 1.18])) {
-        for (let da = hint ? -8 : -15; da <= (hint ? 8 : 15); da += hint ? 4 : 5) {
-          const a = a0 + da;
+        // With a known FOV, scan all 24 orientations: a 30-deg coarse grid can
+        // land 45 deg away on a self-similar grid, and +-8 refinement then
+        // never reaches the true orientation. Without a prior, refine the two
+        // 180-deg-ambiguous coarse peaks over +-30.
+        // Without a trustworthy orientation prior, scan all 24.  A square
+        // grid is 90° self-similar, so the coarse peak is often one quadrant
+        // off; restricting to it would lock that error in.
+        const angles = hint
+          ? Array.from({ length: 24 }, (_, i) => i * 15)
+          : [a0 - 30, a0 - 25, a0 - 20, a0 - 15, a0 - 10, a0 - 5, a0,
+             a0 + 5, a0 + 10, a0 + 15, a0 + 20, a0 + 25, a0 + 30,
+             a0 + 150, a0 + 155, a0 + 160, a0 + 165, a0 + 170, a0 + 175,
+             a0 + 180, a0 + 185, a0 + 190, a0 + 195, a0 + 200, a0 + 205,
+             a0 + 210];
+        for (const a of angles) {
+          {
           const Q = placeMask(mask, N, s, a);
           let sq = 0;
           const qRe = new Float64Array((2 * N) ** 2), qIm = new Float64Array((2 * N) ** 2);
@@ -310,9 +331,27 @@ export class Matcher {
               }
             }
           }
-          if (bt && (!b || bestCorr > b.corr)) b = { corr: bestCorr, scale: s, angle: ((a % 360) + 360) % 360, tx: bt[1], ty: bt[0] };
+          if (bt) {
+            // A city grid is nearly 90° self-similar, so pure NCC can lock
+            // onto a rotation that is 90°/180° off.  Mix in the exact road
+            // overlap at this transform: the true orientation puts far more
+            // query pixels on OSM roads than a rotated copy of the same grid.
+            let onRoad = 0, qn = 0;
+            for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+              if (!Q[y * N + x]) continue;
+              const rx = x + bt[1], ry = y + bt[0];
+              if (rx < 0 || rx >= N || ry < 0 || ry >= N) continue;
+              qn++;
+              if (roads[ry * N + rx]) onRoad++;
+            }
+            const exact = qn ? onRoad / qn : 0;
+            const mix = bestCorr + 0.45 * exact;
+            angleMixes.push({ a: ((a % 360) + 360) % 360, mix });
+            if (!b || mix > b.mix) b = { corr: bestCorr, mix, scale: s, angle: ((a % 360) + 360) % 360, tx: bt[1], ty: bt[0] };
+          }
           done++;
           if ((done & 7) === 0) onProgress({ stage: "fine", done, total });
+          }
         }
       }
       if (!b) continue;
@@ -347,17 +386,39 @@ export class Matcher {
         }
       }
       const reverse = refIn ? refCovered / refIn : 0;
+      // Symmetric overlap, not a one-sided "does the query sit on some road".
+      // A wrong dense grid can give hitRate=1 while most of its roads are not
+      // covered by the query; only F1 exposes that.  This is also what keeps
+      // the displayed percentage honest: 30% overlap cannot read as 80%.
+      const precision = n ? inter / n : 0;
+      const f1 = precision + reverse > 1e-6 ? 2 * precision * reverse / (precision + reverse) : 0;
       // Coarse NCC is computed over all translations and is more stable than
       // the fine-stage peak on a self-similar grid; keep it as a prior.
       const hintScale = hint ? hint / 20 : 0;
       const fovPen = hintScale ? 18 * Math.abs(b.scale - hintScale) / hintScale : 0;
-      const sim = Math.max(0, 100 * (0.34 * fit + 0.24 * hitRate + 0.22 * reverse + 0.20 * Math.min(1, overlap / 0.5))
-        * (0.4 + 0.6 * reliability) + 25 * cand.coarse.corr - fovPen);
+      // Rotation uniqueness: a square city grid is 90° self-similar, so a
+      // wrong orientation can score as well as the right one.  If another
+      // orientation at least 30° away is within 1.5% of the winner, the
+      // direction is not actually determined; lower the confidence instead
+      // of presenting a lucky rotation as certain.
+      let alt = -1;
+      for (const t of angleMixes) {
+        const d = Math.abs(((t.a - b.angle + 540) % 360) - 180);
+        if (d > 30 && t.mix > alt) alt = t.mix;
+      }
+      const rotMargin = alt < 0 ? 1 : b.mix - alt;
+      const rotUncertain = alt >= 0 && rotMargin < 0.015;
+      const sim0 = Math.max(0, Math.min(100, 100 * (0.82 * f1 + 0.10 * fit + 0.08 * Math.min(1, b.corr / 0.45)) - fovPen));
+      const sim = rotUncertain ? sim0 * 0.82 : sim0;
       if (typeof location !== "undefined" && location.search.includes("debug=1") && cand.entry.id.startsWith("1101"))
         console.log("RESULT_BJ", cand.entry.name, sim.toFixed(2), "corr", b.corr.toFixed(3), "hit", hitRate.toFixed(2), "rev", reverse.toFixed(2), "s", b.scale.toFixed(3), "a", b.angle);
+      if (typeof location !== "undefined" && location.search.includes("debug=1"))
+        console.log("DBG", cand.entry.name, "sim", sim.toFixed(2), "fit", fit.toFixed(3),
+          "hit", hitRate.toFixed(3), "rev", reverse.toFixed(3), "ov", overlap.toFixed(3),
+          "P", precision.toFixed(3), "F1", f1.toFixed(3), "ncc", ncc.toFixed(3), "s", b.scale.toFixed(2), "a", b.angle);
       results.push({
-        entry: cand.entry, sim, mean: 0, hit: hitRate, overlap, ncc,
-        scale: b.scale, angle: b.angle, tx: b.tx, ty: b.ty,
+        entry: cand.entry, sim, mean: 0, hit: hitRate, reverse, overlap, ncc, precision, f1,
+        scale: b.scale, angle: b.angle, tx: b.tx, ty: b.ty, rotMargin, rotUncertain,
         fovKm: 20 * b.scale,
       });
     }

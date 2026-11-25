@@ -39,13 +39,10 @@
       <span>纯前端 · 无构建</span>
     </div>
   </div>
-  <div class="hero-orbit" aria-hidden="true">
-    <div class="orbit-ring r1"></div>
-    <div class="orbit-ring r2"></div>
-    <div class="orbit-ring r3"></div>
-    <div class="orbit-city"><span>北京</span><i>39.90°N</i></div>
-    <div class="orbit-node n1"></div><div class="orbit-node n2"></div><div class="orbit-node n3"></div>
-    <p>OSM / 路灯 / 河流 / 机场</p>
+  <div class="hero-map" aria-label="中国地级行政区交互地图">
+    <canvas id="chinaMap"></canvas>
+    <div id="mapTip" class="map-tip" hidden></div>
+    <p>379 个地级行政区 · 点代表城市 · 线代表省域/邻近关系</p>
   </div>
 </section>
 
@@ -98,10 +95,13 @@
     </div>
 
     <label class="switch">
-      <input id="rectify" type="checkbox">
+      <input id="rectify" type="checkbox" checked>
       <span class="track"></span>
-      <span><b>透视拉正</b><small>侧拍时拖动四角，把地面拉成俯视</small></span>
+      <span><b>自动透视校正</b><small>按四角拉正，保持长宽比；识别时不会再次自动改框</small></span>
     </label>
+    <div class="quad-actions">
+      <button class="mini-btn" id="autoRect" type="button">自动拟合四角</button>
+    </div>
 
     <button class="primary" id="runBtn" disabled>
       <span class="btn-label">开始识别</span>
@@ -127,12 +127,12 @@
     </div>
     <div class="canvas-wrap" id="canvasWrap">
       <canvas id="view" width="900" height="620"></canvas>
+      <div class="quad-hint" id="quadHint" hidden>拖动四个角点，贴合图中地面的矩形区域</div>
       <div class="empty-state" id="emptyState">
         <span class="crosshair"></span>
         <b>等待一张夜景</b>
         <p>上传后在这里查看路网提取与最佳匹配的叠加。</p>
       </div>
-      <div class="quad-hint" id="quadHint" hidden>拖动四个角点，贴合图中地面的矩形区域</div>
     </div>
     <div class="stage-foot">
       <div class="legend">

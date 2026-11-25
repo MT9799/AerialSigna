@@ -1,5 +1,36 @@
 [
  {
+  "id": "linquan_full",
+  "name": "临泉县 · 舷窗原图",
+  "city": "临泉县",
+  "province": "安徽省",
+  "file": "samples/commons/linquan_full.jpg",
+  "fov": 8,
+  "quad": [
+   [
+    0.175,
+    0.485
+   ],
+   [
+    0.865,
+    0.458
+   ],
+   [
+    0.905,
+    0.798
+   ],
+   [
+    0.255,
+    0.838
+   ]
+  ],
+  "quadAspect": 1,
+  "expected": [
+   "341221"
+  ],
+  "note": "用户提供的舷窗夜景，测试自动透视与全国检索"
+ },
+ {
   "id": "synthetic_beijing_0",
   "name": "合成 · 北京 0°",
   "city": "北京市",

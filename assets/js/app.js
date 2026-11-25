@@ -1,14 +1,20 @@
 // AerialSigna — static, no-build demo controller.
-import { loadImage, extractMask, descriptor, makeCanvas } from "./preprocess.js";
+import { loadImage, extractMask, cleanMask, descriptor, makeCanvas, autoFrame, rotateMask } from "./preprocess.js";
 import { Matcher } from "./matcher.js";
+import { initChinaMap } from "./chinaMap.js";
+import { autoRectify } from "./perspective.js";
 
 const $ = (s) => document.querySelector(s);
 const state = {
   index: [], matcher: null, samples: [],
   img: null, src: "", meta: null, ext: null, mask: null, desc: null,
-  results: [], selected: -1, view: "overlay", rectify: false,
+  results: [], selected: -1, view: "overlay", rectify: true,
   quad: [{ x: .07, y: .07 }, { x: .93, y: .07 }, { x: .93, y: .93 }, { x: .07, y: .93 }],
   drag: -1, busy: false, tileCache: new Map(), token: 0, rectifiedCanvas: null,
+  // Keep the untouched extraction around so switching 自动透视 off restores
+  // exactly what was loaded, not a half-rectified derivative.
+  baseExt: null, baseMask: null, baseDesc: null, baseDescs: null,
+  rectDirty: true, rectifying: false,
 };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -34,6 +40,7 @@ async function init() {
   if (q0.get("province")) $("#province").value = q0.get("province");
   if (q0.get("county")) $("#countyQuery").value = q0.get("county");
   window.AERIAL_SIGNA = { state };
+  initChinaMap($("#chinaMap"), $("#mapTip"));
   if (new URLSearchParams(location.search).has("dumpmask")) {
     setTimeout(() => {
       const c = document.createElement("canvas"); c.width = c.height = 256;
@@ -44,17 +51,23 @@ async function init() {
       document.body.appendChild(pre);
     }, 1500);
   }
-  if (state.samples.length) {
-    // Start with a real photo so the page is not an empty shell.
-    const qp = new URLSearchParams(location.search);
-    const wanted = qp.get("sample");
-    await selectSample(state.samples.find((s) => s.id === wanted) || state.samples[0]);
+  // No image is loaded or matched on first paint: the national index is
+  // large and an automatic run makes the page feel frozen. The user picks a
+  // sample or uploads a photo explicitly.
+  const qp = new URLSearchParams(location.search);
+  const wanted = qp.get("sample");
+  if (wanted) {
+    const s = state.samples.find((x) => x.id === wanted);
+    if (s) {
+      await selectSample(s);
+      if (qp.has("autorect")) setTimeout(() => $("#autoRect")?.click(), 300);
     if (qp.get("view") === "mask") {
-      state.view = "mask";
-      document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === "mask"));
-      draw();
-    } else if (!qp.has("norun")) {
-      setTimeout(() => { if (state.img && !state.results.length) runMatch(); }, 450);
+        state.view = "mask";
+        document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === "mask"));
+        draw();
+      } else if (!qp.has("norun")) {
+        setTimeout(() => { if (state.img && !state.results.length) runMatch(); }, 300);
+      }
     }
   }
 }
@@ -108,6 +121,10 @@ function buildProvinceOptions() {
 
 async function selectSample(s) {
   document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("active", c.dataset.id === s.id));
+  // Curated samples carry the province in their metadata; use it as an EXIF-
+  // style hint so the demo does not spend 40 s scanning all 2,896 counties.
+  // An uploaded photo has no such hint and still searches nationally.
+  if (s.province) $("#province").value = s.province;
   setStatus("载入样例：" + s.name);
   try {
     const img = await loadImage(s.file);
@@ -123,27 +140,83 @@ async function setImage(img, meta, src) {
   state.meta = meta || {};
   state.src = src || "";
   state.rectifiedCanvas = null;
+  state.rectDirty = true;
   state.results = [];
   state.selected = -1;
-  // Reset the quad to a sensible inset; the user can drag it onto the ground.
-  state.quad = [{ x: .08, y: .10 }, { x: .92, y: .10 }, { x: .92, y: .90 }, { x: .08, y: .90 }];
+  // Start from the full frame.  A bad automatic quad is worse than no quad:
+  // it silently rotates or shears the ground and every later match inherits
+  // the error.  The four corners are seeded to the frame edges; the user (or
+  // the explicit 自动拟合 button) can tighten them.
+  state.quad = Array.isArray(meta?.quad) && meta.quad.length === 4
+    ? meta.quad.map(([x, y]) => ({ x, y }))
+    : [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
   const t0 = performance.now();
-  state.ext = extractMask(img, { maxSide: 720, size: 256 });
-  state.mask = state.ext.mask;
-  state.desc = descriptor(state.mask);
-  const th = state.ext.threshold.toFixed(1);
-  setStatus(`已提取 ${state.ext.roadPixels.toLocaleString("en-US")} 个道路像素 · 阈值 ${th} · ${(performance.now() - t0).toFixed(0)} ms`, "ok");
+  const base = extractMask(img, { maxSide: 1080, size: 256 });
+  state.baseExt = base;
+  state.baseMask = base.mask;
+  state.baseDesc = descriptor(base.mask);
+  state.baseDescs = [];
+  for (let a = 0; a < 360; a += 15) state.baseDescs.push(descriptor(rotateMask(base.mask, 256, a)));
+  // Fit the city once, at load time, and remember that quad.  The button
+  // restores this fit instead of re-running a fresh fit on every click:
+  // repeated fits used to jump to a different (often random) rectangle.
+  if (!Array.isArray(meta?.quad)) estimateQuad();
+  state.initialQuad = state.quad.map((p) => ({ x: p.x, y: p.y }));
+  state.ext = base;
+  state.mask = base.mask;
+  state.desc = state.baseDesc;
+  state.descs = state.baseDescs;
+  if (state.rectify) applyRectify();
+  const shown = state.ext || base;
+  const th = shown.threshold.toFixed(1);
+  setStatus(`已提取 ${shown.roadPixels.toLocaleString("en-US")} 个道路像素 · 阈值 ${th} · ${(performance.now() - t0).toFixed(0)} ms`, "ok");
   $("#runBtn").disabled = !state.matcher;
   $("#fitBtn").disabled = false;
   $("#downloadOverlay").disabled = true;
   $("#emptyState").hidden = true;
-  $("#quadHint").hidden = !state.rectify;
-  state.view = "overlay";
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === "overlay"));
+  // Start on 原图 so the four draggable corners are visible; 叠加/提取路网
+  // then show the rectified frame once 开始识别 (or 自动拟合) applies it.
+  const qview = new URLSearchParams(location.search).get("view");
+  state.view = qview === "mask" || qview === "overlay" ? qview : "source";
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === state.view));
   renderResults();
   $("#stageMeta").textContent = "已载入，等待匹配";
   draw();
 }
+
+// Bake the current four corners into the frame used by 叠加 / 提取路网.
+// Nothing here changes the quad or re-runs the auto fit: that was the source
+// of the "开始识别时又自动拉正一次" bug.
+function applyRectify() {
+  if (!state.img || !state.baseExt) return false;
+  if (!state.rectify) {
+    state.ext = state.baseExt;
+    state.mask = state.baseMask;
+    state.desc = state.baseDesc;
+    state.descs = state.baseDescs;
+    state.rectifiedCanvas = null;
+    state.rectDirty = false;
+    return false;
+  }
+  if (!state.rectDirty && state.rectifiedCanvas) return true;
+  if (state.rectifying) return !!state.rectifiedCanvas;
+  state.rectifying = true;
+  try {
+    const rc = rectifyCanvas();
+    const rex = extractMask(rc, { maxSide: 720, size: 256 });
+    state.rectifiedCanvas = rc;
+    state.ext = rex;
+    state.mask = rex.mask;
+    state.desc = descriptor(rex.mask);
+    state.descs = [];
+    for (let a = 0; a < 360; a += 15) state.descs.push(descriptor(rotateMask(rex.mask, 256, a)));
+    state.rectDirty = false;
+    return true;
+  } finally {
+    state.rectifying = false;
+  }
+}
+
 
 async function runMatch() {
   if (!state.img || !state.matcher || state.busy) return;
@@ -151,17 +224,16 @@ async function runMatch() {
   $("#runBtn").disabled = true;
   setStatus("正在提取 / 比对…", "busy");
   try {
-    let ext = state.ext;
-    if (state.rectify) {
-      setStatus("透视拉正中…", "busy");
-      state.rectifiedCanvas = rectifyCanvas();
-      ext = extractMask(state.rectifiedCanvas, { maxSide: 720, size: 256 });
-      state.rectifiedCanvas = ext.preview;
-    } else {
-      state.rectifiedCanvas = null;
-    }
+    setStatus("正在提取 / 比对…", "busy");
+    // Re-bake only when the corners changed.  This never touches state.quad:
+    // 开始识别 used to run its own auto-fit here, which rotated the ground a
+    // second time after the user had already approved the preview.
+    applyRectify();
+    const ext = state.ext;
     state.mask = ext.mask;
     state.desc = descriptor(state.mask);
+    state.descs = [];
+    for (let a = 0; a < 360; a += 15) state.descs.push(descriptor(rotateMask(state.mask, 256, a)));
     if (state.ext) state.ext.effective = ext;
     const fovSel = $("#fov").value;
     const filter = {
@@ -170,13 +242,14 @@ async function runMatch() {
       // On "auto", use the sample/EXIF hint when present; the matcher then
       // searches a narrow scale band around it instead of 0.25–2.0.
       fovKm: fovSel === "auto" ? (Number(state.meta?.fov) || 0) : Number(fovSel),
+      descs: state.descs,
     };
     const t0 = performance.now();
     const results = await state.matcher.match(state.mask, state.desc, filter, (p) => {
       if (p.stage === "coarse") {
         setStatus(`粗筛 ${p.done}/${p.total} · 64 px`, "busy");
       } else if (p.stage === "fine") {
-        const pct = Math.round(100 * p.done / Math.max(1, p.total));
+        const pct = Math.min(100, Math.round(100 * p.done / Math.max(1, p.total)));
         setStatus(`精排 ${pct}% · 256 px`, "busy");
       }
     });
@@ -220,6 +293,7 @@ function renderResults() {
       </div>
       <div class="rc-score"><b>${r.sim.toFixed(1)}<small>%</small></b><span>相似度</span></div>
       ${i === 0 ? '<span class="tag-best">TOP MATCH</span>' : ""}
+      ${r.rotUncertain ? '<span style="position:absolute;right:10px;bottom:8px;font:10px/1.4 ui-monospace,monospace;color:#e6b45a">方向不唯一</span>' : ""}
     `;
     d.addEventListener("click", () => {
       state.selected = i;
@@ -298,6 +372,8 @@ function imageRect(img, w, h, pad = 18) {
 }
 
 function draw() {
+  const qh = $("#quadHint");
+  if (qh) qh.hidden = !(state.view === "source" && state.rectify && state.img);
   if (state.view === "source") drawSource();
   else if (state.view === "mask") drawMask();
   else drawOverlay();
@@ -309,11 +385,13 @@ function drawSource() {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#05090d"; ctx.fillRect(0, 0, w, h);
   if (!state.img) return;
-  const src = state.rectify && state.rectifiedCanvas ? state.rectifiedCanvas : state.img;
-  const r = imageRect(src, w, h);
+  // 原图 tab is the editing surface: always the uncorrected frame plus the
+  // four corners.  The rectified canvas is used by 叠加/提取路网 only.
+  const src = state.img;
+  const r = imageRect(src, w, h, 0);
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(src, r.x, r.y, r.w, r.h);
-  if (state.rectify && !state.rectifiedCanvas) drawQuad(ctx, r);
+  if (state.rectify) drawQuad(ctx, r);
   ctx.strokeStyle = "rgba(148,173,196,.15)";
   ctx.strokeRect(r.x - .5, r.y - .5, r.w + 1, r.h + 1);
 }
@@ -334,12 +412,16 @@ function drawQuad(ctx, r) {
   ctx.setLineDash([]);
   for (const p of pts) {
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#06110f";
+    ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(6,17,15,.88)";
     ctx.fill();
     ctx.strokeStyle = "#5eead4";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.4;
     ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = "#5eead4";
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -349,6 +431,7 @@ function drawMask() {
   const ctx = c.getContext("2d");
   ctx.fillStyle = "#05090d"; ctx.fillRect(0, 0, w, h);
   if (!state.mask) return;
+  // 提取路网 is a diagnostic view: no source photo, only the extracted graph.
   const S = Math.min(w, h) - 36;
   const ox = (w - S) / 2, oy = (h - S) / 2;
   // faint reference grid
@@ -381,9 +464,11 @@ async function drawOverlay() {
 
   if (!state.results.length || state.selected < 0) {
     // Preview: source frame + extracted skeleton, so upload has immediate feedback.
-    const r = imageRect(state.ext.preview, w, h);
-    ctx.drawImage(state.ext.preview, r.x, r.y, r.w, r.h);
-    const S = r.w, ox = r.x, oy = r.y;
+    const base = state.rectifiedCanvas || state.ext.preview;
+    // Same square footprint as 提取路网, with a small margin on all sides.
+    const S = Math.min(w, h) - 36;
+    const ox = (w - S) / 2, oy = (h - S) / 2;
+    ctx.drawImage(base, ox, oy, S, S);
     const im = ctx.createImageData(256, 256);
     for (let i = 0; i < state.mask.length; i++) {
       if (!state.mask[i]) continue;
@@ -411,7 +496,7 @@ async function drawOverlay() {
   }
   if (tok !== state.token) return;
 
-  const S = Math.min(w, h) - 44;
+  const S = Math.min(w, h) - 36;
   const ox = (w - S) / 2, oy = (h - S) / 2;
   ctx.fillStyle = "#071119";
   ctx.fillRect(ox, oy, S, S);
@@ -528,6 +613,73 @@ function solve8(A, b) {
   return x;
 }
 
+
+// A seed for the 4-corner tool: the extreme points of the lit lattice give a
+// quad that already follows the ground trapezoid, so the user only has to
+// nudge it instead of starting from a full-frame rectangle.
+function estimateQuad() {
+  const ext = state.baseExt || state.ext;
+  if (!ext || !ext.mask) return false;
+  const N = ext.size, m = ext.mask, side = ext.sourceSide;
+  const pts = [];
+  for (let y = 0; y < N; y += 2) for (let x = 0; x < N; x += 2) {
+    if (!m[y * N + x]) continue;
+    const px = (x * side / N - ext.ox) / ext.cw;
+    const py = (y * side / N - ext.oy) / ext.ch;
+    if (px < 0 || px > 1 || py < 0 || py > 1) continue;
+    pts.push([px, py]);
+  }
+  if (pts.length < 60) return false;
+  // Keep only the dense built-up cluster. A long approach road or a cloud
+  // streak can otherwise dominate the PCA and make a huge diagonal box.
+  const G = 16, cell = N / G, cnt = new Uint16Array(G * G);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (m[y * N + x]) cnt[((y / cell) | 0) * G + ((x / cell) | 0)]++;
+  let maxC = 0; for (let i = 0; i < cnt.length; i++) maxC = Math.max(maxC, cnt[i]);
+  const on = new Uint8Array(G * G);
+  const th = Math.max(8, Math.round(maxC * 0.30));
+  for (let i = 0; i < cnt.length; i++) on[i] = cnt[i] >= th ? 1 : 0;
+  // The city is the largest *connected* block of dense cells.  Cloud bands
+  // are diffuse and break into small islands; picking the largest component
+  // is therefore stable as long as the cell threshold is high enough.
+  const seen = new Uint8Array(G * G), queue = new Int32Array(G * G);
+  let best = null, bestN = 0;
+  for (let s0 = 0; s0 < G * G; s0++) {
+    if (!on[s0] || seen[s0]) continue;
+    let head = 0, tail = 0, n = 0, x0 = G, y0 = G, x1 = -1, y1 = -1;
+    const cells = [];
+    queue[tail++] = s0; seen[s0] = 1;
+    while (head < tail) {
+      const v = queue[head++]; n++; cells.push(v);
+      const x = v % G, y = (v / G) | 0;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0) { const j = v - 1; if (on[j] && !seen[j]) { seen[j] = 1; queue[tail++] = j; } }
+      if (x < G - 1) { const j = v + 1; if (on[j] && !seen[j]) { seen[j] = 1; queue[tail++] = j; } }
+      if (y > 0) { const j = v - G; if (on[j] && !seen[j]) { seen[j] = 1; queue[tail++] = j; } }
+      if (y < G - 1) { const j = v + G; if (on[j] && !seen[j]) { seen[j] = 1; queue[tail++] = j; } }
+    }
+    if (n > bestN) { bestN = n; best = { x0, y0, x1, y1, cells }; }
+  }
+  if (!best) return false;
+  let x0 = best.x0 / G, y0 = best.y0 / G, x1 = (best.x1 + 1) / G, y1 = (best.y1 + 1) / G;
+  // A full-frame answer is legitimate for a clean map crop, but it is not a
+  // useful "auto fit" for a photo.  Keep it and let the UI say so.
+  const area = (x1 - x0) * (y1 - y0);
+  if (area > 0.82) {
+    state.quad = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+    state.rectDirty = true;
+    return false;
+  }
+  const ex = (x1 - x0) * 0.08, ey = (y1 - y0) * 0.08;
+  x0 = Math.max(0, x0 - ex); x1 = Math.min(1, x1 + ex);
+  y0 = Math.max(0, y0 - ey); y1 = Math.min(1, y1 + ey);
+  state.quad = [
+    { x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 },
+  ];
+  state.rectDirty = true;
+  return true;
+}
+
 function homography(src, dst) {
   // dst -> src (we need inverse sampling for a forward warp)
   const A = [], b = [];
@@ -544,7 +696,27 @@ function homography(src, dst) {
 function rectifyCanvas() {
   const S = 720;
   const src = state.quad.map((p) => ({ x: p.x * state.img.width, y: p.y * state.img.height }));
-  const dst = [{ x: 0, y: 0 }, { x: S, y: 0 }, { x: S, y: S }, { x: 0, y: S }];
+  // Preserve the quad's aspect ratio.  Mapping a 4:3 city straight onto a
+  // 720x720 square was the "长方形被压成正方形" bug: every road spacing in y
+  // was silently scaled, so a later match could never agree with the square
+  // 20 km reference.
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const wTop = dist(src[0], src[1]), wBot = dist(src[3], src[2]);
+  const hL = dist(src[0], src[3]), hR = dist(src[1], src[2]);
+  const qw = Math.max(1, (wTop + wBot) * .5), qh = Math.max(1, (hL + hR) * .5);
+  // A calibrated sample can state the ground aspect (a city block is not
+  // square just because the photo's bounding box is).  Otherwise keep the
+  // quad's photo aspect instead of forcing 1:1.
+  const aspect = Number(state.meta?.quadAspect) || (qw / qh);
+  let cw, ch;
+  if (aspect >= 1) { cw = S; ch = Math.max(Math.round(S * .42), Math.round(S / aspect)); }
+  else { ch = S; cw = Math.max(Math.round(S * .42), Math.round(S * aspect)); }
+  cw = Math.min(S, cw); ch = Math.min(S, ch);
+  const mx = Math.round((S - cw) * .5), my = Math.round((S - ch) * .5);
+  const dst = [
+    { x: mx, y: my }, { x: mx + cw, y: my },
+    { x: mx + cw, y: my + ch }, { x: mx, y: my + ch },
+  ];
   const H = homography(src, dst);
   const out = makeCanvas(S, S);
   const octx = out.getContext("2d");
@@ -560,6 +732,7 @@ function rectifyCanvas() {
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const d = H[6] * x + H[7] * y + H[8];
+      if (d === 0) continue;
       const sx = (H[0] * x + H[1] * y + H[2]) / d;
       const sy = (H[3] * x + H[4] * y + H[5]) / d;
       const ix = Math.floor(sx), iy = Math.floor(sy);
@@ -618,46 +791,77 @@ function bindUI() {
     b.addEventListener("click", () => {
       state.view = b.dataset.view;
       document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
+      if (state.view !== "source") applyRectify();
       draw();
     });
   });
 
   $("#rectify").addEventListener("change", (e) => {
     state.rectify = e.target.checked;
-    state.rectifiedCanvas = null;
-    $("#quadHint").hidden = !state.rectify;
-    if (state.rectify) state.view = "source", document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === "source"));
+    state.rectDirty = true;
+    applyRectify();
     draw();
+  });
+  $("#autoRect")?.addEventListener("click", () => {
+    if (!state.img) return;
+    if (state.initialQuad) {
+      state.quad = state.initialQuad.map((p) => ({ x: p.x, y: p.y }));
+    } else if (!estimateQuad()) {
+      setStatus("未检测到明确城区，已保留全图；请手动拖动四角", "busy");
+      return;
+    }
+    state.rectDirty = true;
+    applyRectify();
+    draw();
+    setStatus("已恢复载入时的自动四角；可继续拖动微调", "ok");
   });
 
   const cv = $("#view");
-  cv.addEventListener("pointerdown", (e) => {
-    if (!state.rectify || state.view === "overlay") return;
-    const p = canvasPoint(e);
+  const hitRadius = () => Math.max(34, Math.min(cv.width, cv.height) * 0.055);
+  const cornerAt = (p) => {
     const r = imageRect(state.img, cv.width, cv.height);
-    let best = -1, bd = 18;
+    let best = -1, bd = hitRadius();
     state.quad.forEach((q, i) => {
       const x = r.x + q.x * r.w, y = r.y + q.y * r.h;
       const d = Math.hypot(x - p.x, y - p.y);
       if (d < bd) { bd = d; best = i; }
     });
+    return best;
+  };
+  cv.addEventListener("pointerdown", (e) => {
+    if (!state.rectify || state.view === "overlay") return;
+    const p = canvasPoint(e);
+    const best = cornerAt(p);
     if (best >= 0) {
       state.drag = best;
       cv.setPointerCapture(e.pointerId);
+      cv.style.cursor = "grabbing";
       e.preventDefault();
     }
   });
   cv.addEventListener("pointermove", (e) => {
-    if (state.drag < 0) return;
     const p = canvasPoint(e);
+    if (state.drag < 0) {
+      cv.style.cursor = state.rectify && state.view !== "overlay" && cornerAt(p) >= 0 ? "grab" : "default";
+      return;
+    }
     const r = imageRect(state.img, cv.width, cv.height);
     state.quad[state.drag] = {
       x: Math.max(0, Math.min(1, (p.x - r.x) / r.w)),
       y: Math.max(0, Math.min(1, (p.y - r.y) / r.h)),
     };
+    state.rectDirty = true;
     drawSource();
   });
-  cv.addEventListener("pointerup", () => { state.drag = -1; });
+  cv.addEventListener("pointerup", () => {
+    if (state.drag < 0) return;
+    state.drag = -1;
+    cv.style.cursor = "grab";
+    // Refresh 叠加 immediately: the old code left the overlay stale until
+    // the next tab switch or a full match.
+    if (state.rectify) applyRectify();
+    draw();
+  });
 
   $("#province").addEventListener("change", () => { if (state.results.length) state.results = []; renderResults(); });
 }
